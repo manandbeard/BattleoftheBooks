@@ -1,0 +1,256 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum Role {
+  STATE_ADMIN
+  REGIONAL_CHAIR
+  COACH
+  STUDENT
+  MODERATOR
+}
+
+enum AgeDivision {
+  GRADES_3_5
+  GRADES_6_8
+  GRADES_9_12
+}
+
+model Tenant {
+  id          String       @id @default(uuid())
+  name        String
+  regions     Region[]
+  districts   District[]
+  schools     School[]
+  users       User[]
+  teams       Team[]
+  tournaments Tournament[]
+  books       Book[]
+  rooms       Room[]
+  battles     Battle[]
+  announcements Announcement[]
+  flashcards  Flashcard[]
+  bookClaims  BookClaim[]
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+}
+
+model Region {
+  id        String     @id @default(uuid())
+  tenantId  String
+  tenant    Tenant     @relation(fields: [tenantId], references: [id])
+  name      String
+  districts District[]
+  users     User[]     // Regional Chairs
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+}
+
+model District {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  name      String
+  regionId  String
+  region    Region   @relation(fields: [regionId], references: [id])
+  schools   School[]
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model School {
+  id         String   @id @default(uuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  name       String
+  districtId String
+  district   District @relation(fields: [districtId], references: [id])
+  users      User[]
+  teams      Team[]
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model User {
+  id         String   @id @default(uuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  email      String   @unique
+  name       String
+  role       Role     @default(STUDENT)
+  
+  // Hierarchical relations
+  schoolId   String?
+  school     School?  @relation(fields: [schoolId], references: [id])
+  regionId   String?
+  region     Region?  @relation(fields: [regionId], references: [id])
+  
+  // Team relations
+  teamId     String?
+  team       Team?    @relation(fields: [teamId], references: [id])
+  isAlternate Boolean @default(false)
+
+  // Moderator relations
+  moderatedBattles Battle[] @relation("BattleModerator")
+  announcements    Announcement[]
+  flashcards       Flashcard[]
+  bookClaims       BookClaim[]
+
+  isApproved Boolean @default(false) // For Coach approval
+  
+  // Privacy & COPPA Compliance
+  isUnder13        Boolean @default(false)
+  parentalConsent  Boolean @default(false)
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Announcement {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  title     String
+  content   String   @db.Text
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id])
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model Team {
+  id         String   @id @default(uuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  name       String
+  schoolId   String
+  school     School   @relation(fields: [schoolId], references: [id])
+  division   AgeDivision
+  
+  // Roster (enforced 5 members via application logic)
+  members    User[]
+
+  // Battles
+  battlesAsTeam1 Battle[] @relation("Team1")
+  battlesAsTeam2 Battle[] @relation("Team2")
+  
+  // Study Tools
+  flashcards Flashcard[]
+  bookClaims BookClaim[]
+
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Book {
+  id                  String   @id @default(uuid())
+  tenantId            String
+  tenant              Tenant   @relation(fields: [tenantId], references: [id])
+  title               String
+  author              String
+  phoneticPronunciation String?
+  lexileScore         Int?
+  alternativeAnswers  String[]
+  division            AgeDivision
+  coverImage          String?
+  
+  flashcards          Flashcard[]
+  bookClaims          BookClaim[]
+  
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+model Flashcard {
+  id        String   @id @default(uuid())
+  tenantId  String
+  tenant    Tenant   @relation(fields: [tenantId], references: [id])
+  teamId    String
+  team      Team     @relation(fields: [teamId], references: [id])
+  authorId  String
+  author    User     @relation(fields: [authorId], references: [id])
+  bookId    String
+  book      Book     @relation(fields: [bookId], references: [id])
+  question  String   @db.Text
+  answer    String   @db.Text
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+}
+
+model BookClaim {
+  id          String   @id @default(uuid())
+  tenantId    String
+  tenant      Tenant   @relation(fields: [tenantId], references: [id])
+  teamId      String
+  team        Team     @relation(fields: [teamId], references: [id])
+  userId      String
+  user        User     @relation(fields: [userId], references: [id])
+  bookId      String
+  book        Book     @relation(fields: [bookId], references: [id])
+  isCompleted Boolean  @default(false)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([teamId, bookId, userId])
+}
+
+model Tournament {
+  id         String   @id @default(uuid())
+  tenantId   String
+  tenant     Tenant   @relation(fields: [tenantId], references: [id])
+  name       String
+  date       DateTime
+  division   AgeDivision @default(GRADES_3_5)
+  battles    Battle[]
+  rooms      Room[]
+  
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+}
+
+model Room {
+  id           String   @id @default(uuid())
+  tenantId     String
+  tenant       Tenant   @relation(fields: [tenantId], references: [id])
+  name         String
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id])
+  battles      Battle[]
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Battle {
+  id           String   @id @default(uuid())
+  tenantId     String
+  tenant       Tenant   @relation(fields: [tenantId], references: [id])
+  
+  tournamentId String
+  tournament   Tournament @relation(fields: [tournamentId], references: [id])
+  
+  roomId       String
+  room         Room     @relation(fields: [roomId], references: [id])
+  
+  team1Id      String
+  team1        Team     @relation("Team1", fields: [team1Id], references: [id])
+  
+  team2Id      String
+  team2        Team     @relation("Team2", fields: [team2Id], references: [id])
+  
+  moderatorId  String?
+  moderator    User?    @relation("BattleModerator", fields: [moderatorId], references: [id])
+  
+  startTime    DateTime
+  endTime      DateTime?
+  
+  team1Score   Int      @default(0)
+  team2Score   Int      @default(0)
+
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}

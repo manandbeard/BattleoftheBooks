@@ -1,0 +1,6 @@
+{
+  "name": "EduTournament",
+  "description": "Multi-tenant educational tournament application with RBAC and hierarchical entities.",
+  "requestFramePermissions": [],
+  "majorCapabilities": []
+}
